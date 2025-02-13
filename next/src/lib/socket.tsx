@@ -17,12 +17,13 @@ const socket = io(process.env.NEXT_PUBLIC_API_ORIGIN, {
 
 export type SocketState = {
   connected: boolean
+  partyId?: string
   users: string[]
   messages: Message[]
   connect: (token: string) => void
   disconnect: () => void
-  joinParty: (partyId: string) => void
-  joinTopic: (topicId: string) => void
+  joinParty: (id: string) => void
+  joinTopic: (id: string) => void
   sendMessage: (body: string) => void
 }
 
@@ -43,6 +44,7 @@ export function useSocket() {
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [connected, setConnected] = useState(false)
+  const [partyId, setPartyId] = useState<string | undefined>()
   const [users, setUsers] = useState<string[]>([])
   const [messages, setMessages] = useState<Message[]>([])
 
@@ -78,18 +80,18 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     delete socket.io.opts.extraHeaders?.authorization
   }, [])
 
-  const joinParty = useCallback((partyId: string) => {
-    socket.emit('party:join', partyId, (users: string[]) => {
-      setUsers(users)
+  const joinParty = useCallback((id: string) => {
+    setPartyId(undefined)
+
+    socket.emit('party:join', id, (id: string) => {
+      setPartyId(id)
     })
   }, [])
 
-  const joinTopic = useCallback((topicId: string) => {
+  const joinTopic = useCallback((id: string) => {
     setMessages([])
 
-    socket.emit('topic:join', topicId, (messages: Message[]) => {
-      setMessages(messages)
-    })
+    socket.emit('topic:join', id)
   }, [])
 
   const sendMessage = useCallback((body: string) => {
@@ -100,6 +102,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     <SocketContext.Provider
       value={{
         connected,
+        partyId,
         users,
         messages,
         connect,

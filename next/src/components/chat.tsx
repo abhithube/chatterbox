@@ -26,7 +26,8 @@ export function Chat({
 }) {
   const { getToken } = useAuth()
 
-  const { connected, connect, disconnect, joinParty, joinTopic } = useSocket()
+  const { connected, partyId, connect, disconnect, joinParty, joinTopic } =
+    useSocket()
 
   useEffect(() => {
     getToken().then((token) => {
@@ -44,13 +45,13 @@ export function Chat({
     if (!connected) return
 
     joinParty(party.id)
-  }, [connected, party, joinParty])
+  }, [connected, joinParty, party])
 
   useEffect(() => {
-    if (!connected) return
+    if (!connected || !partyId) return
 
     joinTopic(topic.id)
-  }, [connected, joinTopic, topic])
+  }, [connected, partyId, joinTopic, topic])
 
   return (
     <SidebarProvider>
