@@ -9,10 +9,6 @@ declare module "sst" {
       "type": "sst.aws.Nextjs"
       "url": string
     }
-    "DynamoTable": {
-      "name": string
-      "type": "sst.aws.Dynamo"
-    }
     "SnsTopic": {
       "arn": string
       "type": "sst.aws.SnsTopic"
