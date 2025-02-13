@@ -4,7 +4,7 @@ use anyhow::anyhow;
 use axum::{routing, Router};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use socketioxide::{
-    extract::{Data, Extension, MaybeExtension, SocketRef, State},
+    extract::{AckSender, Data, Extension, MaybeExtension, SocketRef, State},
     handler::ConnectHandler,
     SocketIo,
 };
@@ -18,7 +18,8 @@ struct SocketState {
     pub validation: Validation,
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 struct Claims {
     pub sub: String,
     pub name: String,
@@ -78,6 +79,7 @@ async fn on_party_join(
     Extension(user): Extension<SocketUser>,
     MaybeExtension(party): MaybeExtension<SocketParty>,
     Data(party_id): Data<String>,
+    ack: AckSender,
 ) {
     if let Some(party) = party {
         socket.leave(format!("party:{}", party.id));
@@ -88,7 +90,11 @@ async fn on_party_join(
 
     println!("user {} joined party {}", user.id, party_id);
 
-    socket.extensions.insert(SocketParty { id: party_id });
+    socket.extensions.insert(SocketParty {
+        id: party_id.clone(),
+    });
+
+    ack.send(&party_id).unwrap();
 
     let users = io
         .to(room.clone())
@@ -106,6 +112,7 @@ async fn on_topic_join(
     Extension(_party): Extension<SocketParty>,
     MaybeExtension(topic): MaybeExtension<SocketTopic>,
     Data(topic_id): Data<String>,
+    ack: AckSender,
 ) {
     if let Some(topic) = topic {
         socket.leave(format!("topic:{}", topic.id));
@@ -115,7 +122,11 @@ async fn on_topic_join(
 
     println!("user {} joined topic {}", user.id, topic_id);
 
-    socket.extensions.insert(SocketTopic { id: topic_id });
+    socket.extensions.insert(SocketTopic {
+        id: topic_id.clone(),
+    });
+
+    ack.send(&topic_id).unwrap()
 }
 
 #[tokio::main]
