@@ -2,7 +2,7 @@ use std::{env, sync::Arc};
 
 use anyhow::anyhow;
 use axum::{routing, Router};
-use jsonwebtoken::{DecodingKey, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use socketioxide::{
     extract::{Data, Extension, MaybeExtension, SocketRef, State},
     handler::ConnectHandler,
@@ -14,7 +14,8 @@ const BASE_PATH: &str = "/api/v1";
 
 #[derive(Clone)]
 struct SocketState {
-    pub jwt_secret: String,
+    pub decoding_key: DecodingKey,
+    pub validation: Validation,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -55,11 +56,7 @@ fn auth_middleware(
         .next_back()
         .ok_or_else(|| anyhow!("Invalid format for 'Authorization' header"))?;
 
-    let token = jsonwebtoken::decode::<Claims>(
-        bearer,
-        &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
-        &Validation::default(),
-    )?;
+    let token = jsonwebtoken::decode::<Claims>(bearer, &state.decoding_key, &state.validation)?;
 
     socket.extensions.insert(SocketUser {
         id: token.claims.sub,
@@ -123,10 +120,13 @@ async fn on_topic_join(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let jwt_secret = env::var("JWT_SECRET")?;
+    let pem_public_key = env::var("PEM_PUBLIC_KEY")?;
 
     let (layer, io) = SocketIo::builder()
-        .with_state(Arc::new(SocketState { jwt_secret }))
+        .with_state(Arc::new(SocketState {
+            decoding_key: DecodingKey::from_rsa_pem(pem_public_key.as_bytes())?,
+            validation: Validation::new(Algorithm::RS256),
+        }))
         .req_path(format!("{}/socket.io", BASE_PATH))
         .build_layer();
 

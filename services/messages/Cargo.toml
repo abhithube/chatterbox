@@ -9,7 +9,9 @@ axum = { version = "0.8.1", default-features = false, features = [
   "http1",
   "tokio",
 ] }
-jsonwebtoken = { version = "9.3.1", default-features = false }
+jsonwebtoken = { version = "9.3.1", default-features = false, features = [
+  "use_pem",
+] }
 serde = { version = "1.0.217", default-features = false }
 socketioxide = { version = "0.16.1", default-features = false, features = [
   "extensions",
