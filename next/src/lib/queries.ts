@@ -1,92 +1,86 @@
-import { Resource } from 'sst'
-import { db } from './db'
+import { partyUsers, parties, Db } from './drizzle'
 import { Party, PartyDetails } from './types'
+import { and, eq, exists } from 'drizzle-orm'
 
-export async function getParties(userId: string): Promise<Party[]> {
-  const output = await db.query({
-    TableName: Resource.DynamoTable.name,
-    IndexName: 'GSI1',
-    KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :sk)',
-    ExpressionAttributeValues: {
-      ':pk': `USER#${userId}`,
-      ':sk': 'PARTY#',
-    },
-    ProjectionExpression: 'partyId, partyName',
-  })
+export async function getParties(db: Db, userId: string): Promise<Party[]> {
+  const rows = await db
+    .select({
+      id: parties.id,
+      title: parties.title,
+    })
+    .from(parties)
+    .where(
+      exists(
+        db
+          .select()
+          .from(partyUsers)
+          .where(
+            and(
+              eq(partyUsers.partyId, parties.id),
+              eq(partyUsers.userId, userId),
+            ),
+          ),
+      ),
+    )
 
-  return (output.Items ?? []).map((item) => ({
-    id: item.partyId,
-    title: item.partyName,
-  }))
+  return rows
 }
 
-export async function getParty(id: string): Promise<PartyDetails | null> {
-  const queryOutput = await db.query({
-    TableName: Resource.DynamoTable.name,
-    KeyConditionExpression: 'pk = :pk',
-    ExpressionAttributeValues: {
-      ':pk': `PARTY#${id}`,
+export async function getParty(
+  db: Db,
+  id: string,
+): Promise<PartyDetails | null> {
+  const row = await db.query.parties.findFirst({
+    columns: {
+      id: true,
+      title: true,
     },
-    ProjectionExpression:
-      'id, #name, image, userId, userName, userImage, isAdmin, #type',
-    ExpressionAttributeNames: {
-      '#name': 'name',
-      '#type': 'type',
+    with: {
+      topics: {
+        columns: {
+          id: true,
+          title: true,
+        },
+      },
+      partyUsers: {
+        columns: {
+          isAdmin: true,
+        },
+        with: {
+          user: true,
+        },
+      },
     },
+    where: eq(parties.id, id),
   })
-
-  if (!queryOutput.Items || queryOutput.Items.length === 0) {
-    return null
-  }
+  if (!row) return null
 
   const party: PartyDetails = {
-    id: '',
-    title: '',
-    topics: [],
-    members: [],
-  }
-
-  for (const item of queryOutput.Items) {
-    switch (item.type) {
-      case 'PARTY':
-        party.id = item.id
-        party.title = item.name
-
-        break
-      case 'TOPIC':
-        party.topics.push({
-          id: item.id,
-          title: item.name,
-        })
-
-        break
-      case 'MEMBER':
-        party.members.push({
-          id: item.userId,
-          name: item.userName,
-          image: item.userImage ?? null,
-          isAdmin: item.isAdmin,
-        })
-
-        break
-    }
+    id: row.id,
+    title: row.title,
+    topics: row.topics.map((row) => ({
+      id: row.id,
+      title: row.title,
+    })),
+    members: row.partyUsers.map((row) => ({
+      id: row.user.id,
+      name: row.user.name,
+      image: row.user.image,
+      isAdmin: row.isAdmin,
+    })),
   }
 
   return party
 }
 
 export async function isMember(
+  db: Db,
   partyId: string,
   userId: string,
 ): Promise<boolean> {
-  const getItemOutput = await db.get({
-    TableName: Resource.DynamoTable.name,
-    Key: {
-      pk: `PARTY#${partyId}`,
-      sk: `USER#${userId}`,
-    },
-    ProjectionExpression: 'userId',
+  const row = await db.query.partyUsers.findFirst({
+    where: and(eq(partyUsers.partyId, partyId), eq(partyUsers.userId, userId)),
   })
 
-  return !!getItemOutput.Item?.userId
+  return !!row
 }

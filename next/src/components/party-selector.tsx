@@ -10,11 +10,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from '@/components/ui/sidebar'
+import { getParties } from '@/lib/queries'
 import { Check, ChevronsUpDown, GalleryVerticalEnd } from 'lucide-react'
 import Link from 'next/link'
 import { redirect, RedirectType } from 'next/navigation'
 import { PartyDialog } from './party-dialog'
-import { getParties } from '@/lib/queries'
+import { db } from '@/lib/drizzle'
 
 export async function PartySelector({
   partyId,
@@ -23,7 +24,7 @@ export async function PartySelector({
   partyId: string
   userId: string
 }) {
-  const parties = await getParties(userId)
+  const parties = await getParties(db, userId)
 
   const selected = parties.find((party) => party.id === partyId)
   if (!selected) {

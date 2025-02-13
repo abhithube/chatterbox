@@ -2,6 +2,7 @@ import { auth } from '@/auth'
 import { Chat } from '@/components/chat'
 import { MessageFeed } from '@/components/message-feed'
 import { TopicSidebar } from '@/components/topic-sidebar'
+import { db } from '@/lib/drizzle'
 import { getParty, isMember } from '@/lib/queries'
 import { SocketProvider } from '@/lib/socket'
 import { SessionProvider } from 'next-auth/react'
@@ -13,11 +14,11 @@ const TOPIC_ID = '99fa190b-52de-4e37-a8da-d8cf78cbbacf'
 export default async function Page() {
   const session = (await auth())!
 
-  if (!(await isMember(PARTY_ID, session.user!.id!))) {
+  if (!(await isMember(db, PARTY_ID, session.user!.id!))) {
     notFound()
   }
 
-  const party = await getParty(PARTY_ID)
+  const party = await getParty(db, PARTY_ID)
   if (!party) {
     notFound()
   }

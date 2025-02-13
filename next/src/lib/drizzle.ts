@@ -1,7 +1,8 @@
 import { relations } from 'drizzle-orm'
-import { drizzle } from 'drizzle-orm/neon-http'
+import { drizzle, NeonHttpQueryResultHKT } from 'drizzle-orm/neon-http'
 import {
   boolean,
+  PgDatabase,
   pgTable,
   primaryKey,
   text,
@@ -83,17 +84,21 @@ const messagesRelations = relations(messages, ({ one }) => ({
   }),
 }))
 
+export const schema = {
+  users,
+  usersRelations,
+  parties,
+  partiesRelations,
+  partyUsers,
+  partyUsersRelations,
+  topics,
+  topicsRelations,
+  messages,
+  messagesRelations,
+}
+
 export const db = drizzle(process.env.DATABASE_URL!, {
-  schema: {
-    users,
-    usersRelations,
-    parties,
-    partiesRelations,
-    partyUsers,
-    partyUsersRelations,
-    topics,
-    topicsRelations,
-    messages,
-    messagesRelations,
-  },
+  schema,
 })
+
+export type Db = PgDatabase<NeonHttpQueryResultHKT, typeof schema>

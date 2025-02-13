@@ -1,12 +1,11 @@
 'use server'
 
-import { Resource } from 'sst'
-import { db } from './db'
-import { randomUUID } from 'crypto'
 import { auth } from '@/auth'
-import { TransactionCanceledException } from '@aws-sdk/client-dynamodb'
+import { db as drizzle, parties, partyUsers, topics } from './drizzle'
 import { publishPartyCreated, publishTopicCreated } from './events'
 import { Member, PartyDetails, Topic } from './types'
+import { nanoid } from 'nanoid'
+import { isMember } from './queries'
 
 type CreateParty = {
   title: string
@@ -16,7 +15,7 @@ export async function createParty(data: CreateParty) {
   const user = (await auth())!.user!
 
   const topic: Topic = {
-    id: randomUUID(),
+    id: nanoid(),
     title: 'general',
   }
 
@@ -28,85 +27,32 @@ export async function createParty(data: CreateParty) {
   }
 
   const party: PartyDetails = {
-    id: randomUUID(),
+    id: nanoid(),
     title: data.title,
     topics: [topic],
     members: [member],
   }
 
-  try {
-    await db.transactWrite({
-      TransactItems: [
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `PARTY#${party.id}`,
-              sk: `PARTY#${party.id}`,
-              id: party.id,
-              name: party.title,
-              type: 'PARTY',
-            },
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `PARTY#${party.title}`,
-              sk: `PARTY#${party.title}`,
-            },
-            ConditionExpression: 'attribute_not_exists(pk)',
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `PARTY#${party.id}`,
-              sk: `TOPIC#${topic.id}`,
-              id: topic.id,
-              name: topic.title,
-              type: 'TOPIC',
-            },
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `TOPIC#${party.id}#${topic.title}`,
-              sk: `TOPIC#${party.id}#${topic.title}`,
-            },
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `PARTY#${party.id}`,
-              sk: `USER#${member.id}`,
-              GSI1PK: `USER#${member.id}`,
-              GSI1SK: `PARTY#${party.id}`,
-              userId: member.id,
-              userName: member.name,
-              userImage: member.image,
-              isAdmin: member.isAdmin,
-              partyId: party.id,
-              partyName: party.title,
-              type: 'MEMBER',
-            },
-          },
-        },
-      ],
+  await drizzle.transaction(async (tx) => {
+    await tx.insert(parties).values({
+      id: party.id,
+      title: party.title,
+    })
+
+    await tx.insert(partyUsers).values({
+      partyId: party.id,
+      userId: member.id,
+      isAdmin: member.isAdmin,
+    })
+
+    await tx.insert(topics).values({
+      id: topic.id,
+      title: topic.title,
+      partyId: party.id,
     })
 
     await publishPartyCreated(party)
-  } catch (error) {
-    if (error instanceof TransactionCanceledException) {
-      console.log(error)
-    }
-  }
+  })
 }
 
 type CreateTopic = {
@@ -118,52 +64,21 @@ export async function createTopic(data: CreateTopic) {
   const user = (await auth())!.user!
 
   const topic: Topic = {
-    id: randomUUID(),
+    id: nanoid(),
     title: data.title,
   }
 
-  try {
-    await db.transactWrite({
-      TransactItems: [
-        {
-          ConditionCheck: {
-            TableName: Resource.DynamoTable.name,
-            Key: {
-              pk: `PARTY#${data.partyId}`,
-              sk: `USER#${user.id}`,
-            },
-            ConditionExpression: 'attribute_exists(pk)',
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `PARTY#${data.partyId}`,
-              sk: `TOPIC#${topic.id}`,
-              id: topic.id,
-              name: topic.title,
-              type: 'TOPIC',
-            },
-          },
-        },
-        {
-          Put: {
-            TableName: Resource.DynamoTable.name,
-            Item: {
-              pk: `TOPIC#${data.partyId}#${topic.title}`,
-              sk: `TOPIC#${data.partyId}#${topic.title}`,
-            },
-            ConditionExpression: 'attribute_not_exists(pk)',
-          },
-        },
-      ],
+  await drizzle.transaction(async (tx) => {
+    if (!(await isMember(tx, data.partyId, user.id!))) {
+      return tx.rollback()
+    }
+
+    await drizzle.insert(topics).values({
+      id: topic.id,
+      title: topic.title,
+      partyId: data.partyId,
     })
 
     await publishTopicCreated(data.partyId, topic)
-  } catch (error) {
-    if (error instanceof TransactionCanceledException) {
-      console.log(error)
-    }
-  }
+  })
 }
