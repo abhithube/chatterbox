@@ -12,7 +12,6 @@ import { Message } from './types'
 
 const socket = io(process.env.NEXT_PUBLIC_API_ORIGIN, {
   path: process.env.NEXT_PUBLIC_API_PATH + '/socket.io',
-  transports: ['polling'],
   autoConnect: false,
 })
 
@@ -56,12 +55,8 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
       setConnected(false)
     })
 
-    socket.on('party:joined', (userId: string) => {
-      setUsers((users) => [...users, userId])
-    })
-
-    socket.on('party:left', (userId: string) => {
-      setUsers((users) => users.filter((user) => user !== userId))
+    socket.on('user:online', (online: string[]) => {
+      setUsers(online)
     })
 
     socket.on('message:created', (message: Message) => {
