@@ -1,5 +1,5 @@
 import { relations } from 'drizzle-orm'
-import { drizzle, NeonHttpQueryResultHKT } from 'drizzle-orm/neon-http'
+import { drizzle, NeonQueryResultHKT } from 'drizzle-orm/neon-serverless'
 import {
   boolean,
   PgDatabase,
@@ -10,13 +10,13 @@ import {
 } from 'drizzle-orm/pg-core'
 
 export const users = pgTable('users', {
-  id: text().notNull().primaryKey(),
+  id: text().primaryKey(),
   name: text().notNull(),
   image: text(),
 })
 
 export const parties = pgTable('parties', {
-  id: text().notNull().primaryKey(),
+  id: text().primaryKey(),
   title: text().notNull(),
 })
 
@@ -31,13 +31,13 @@ export const partyUsers = pgTable(
 )
 
 export const topics = pgTable('topics', {
-  id: text().notNull().primaryKey(),
+  id: text().primaryKey(),
   title: text().notNull(),
   partyId: text('party_id').notNull(),
 })
 
 export const messages = pgTable('messages', {
-  id: text().notNull().primaryKey(),
+  id: text().primaryKey(),
   content: text().notNull(),
   createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
   topicId: text('topic_id').notNull(),
@@ -101,4 +101,4 @@ export const db = drizzle(process.env.DATABASE_URL!, {
   schema,
 })
 
-export type Db = PgDatabase<NeonHttpQueryResultHKT, typeof schema>
+export type Db = PgDatabase<NeonQueryResultHKT, typeof schema>
