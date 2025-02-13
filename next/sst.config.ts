@@ -31,12 +31,17 @@ export default $config({
       ttl: 'expires',
     })
 
-    const snsTopic = new sst.aws.SnsTopic('SnsTopic', {
+    new sst.aws.SnsTopic('SnsTopic', {
       fifo: true,
+      transform: {
+        topic: {
+          contentBasedDeduplication: true,
+        },
+      },
     })
 
     new sst.aws.Nextjs('ChatterboxNext', {
-      link: [dynamoTable, snsTopic],
+      link: [dynamoTable],
     })
   },
 })

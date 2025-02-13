@@ -1,5 +1,4 @@
 import { PublishCommand, SNSClient } from '@aws-sdk/client-sns'
-import { Resource } from 'sst'
 import { PartyDetails, Topic, User } from './types'
 
 const snsClient = new SNSClient()
@@ -11,7 +10,7 @@ export async function publishUserCreated(user: User) {
         type: 'user:created',
         data: user,
       }),
-      TopicArn: Resource.SnsTopic.arn,
+      TopicArn: process.env.SNS_TOPIC_ARN,
       MessageGroupId: `user:${user.id}`,
     }),
   )
@@ -24,7 +23,7 @@ export async function publishPartyCreated(party: PartyDetails) {
         type: 'party:created',
         data: party,
       }),
-      TopicArn: Resource.SnsTopic.arn,
+      TopicArn: process.env.SNS_TOPIC_ARN,
       MessageGroupId: `party:${party.id}`,
     }),
   )
@@ -40,7 +39,7 @@ export async function publishTopicCreated(partyId: string, topic: Topic) {
           partyId,
         },
       }),
-      TopicArn: Resource.SnsTopic.arn,
+      TopicArn: process.env.SNS_TOPIC_ARN,
       MessageGroupId: `party:${partyId}`,
     }),
   )
