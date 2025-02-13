@@ -1,18 +1,42 @@
 'use server'
 
-import { auth } from '@/auth'
-import { db as drizzle, parties, partyUsers, topics } from './drizzle'
-import { publishPartyCreated, publishTopicCreated } from './events'
-import { Member, PartyDetails, Topic } from './types'
+import { db as drizzle, parties, partyUsers, topics, users } from './drizzle'
+import {
+  publishPartyCreated,
+  publishTopicCreated,
+  publishUserCreated,
+} from './events'
+import { Member, PartyDetails, Topic, User } from './types'
 import { nanoid } from 'nanoid'
 import { isMember } from './queries'
+import { auth, currentUser, UserJSON } from '@clerk/nextjs/server'
+
+export async function createUser(data: UserJSON) {
+  const user: User = {
+    id: data.id,
+    email: data.email_addresses[0].email_address,
+    name:
+      (data.first_name ?? '') + (data.last_name ? ` ${data.last_name}` : ''),
+    image: data.image_url,
+  }
+
+  await drizzle.transaction(async (tx) => {
+    await tx.insert(users).values({
+      id: user.id,
+      name: user.name,
+      image: user.image,
+    })
+
+    await publishUserCreated(user)
+  })
+}
 
 type CreateParty = {
   title: string
 }
 
 export async function createParty(data: CreateParty) {
-  const user = (await auth())!.user!
+  const user = (await currentUser())!
 
   const topic: Topic = {
     id: nanoid(),
@@ -20,9 +44,9 @@ export async function createParty(data: CreateParty) {
   }
 
   const member: Member = {
-    id: user.id!,
-    name: user.name!,
-    image: user.image!,
+    id: user.id,
+    name: user.fullName!,
+    image: user.imageUrl,
     isAdmin: true,
   }
 
@@ -61,7 +85,7 @@ type CreateTopic = {
 }
 
 export async function createTopic(data: CreateTopic) {
-  const user = (await auth())!.user!
+  const userId = (await auth()).userId!
 
   const topic: Topic = {
     id: nanoid(),
@@ -69,7 +93,7 @@ export async function createTopic(data: CreateTopic) {
   }
 
   await drizzle.transaction(async (tx) => {
-    if (!(await isMember(tx, data.partyId, user.id!))) {
+    if (!(await isMember(tx, data.partyId, userId))) {
       return tx.rollback()
     }
 

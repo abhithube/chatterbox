@@ -8,10 +8,10 @@ import {
 } from '@/components/ui/sidebar'
 import { useSocket } from '@/lib/socket'
 import { PartyDetails, Topic } from '@/lib/types'
-import { useSession } from 'next-auth/react'
 import { useEffect } from 'react'
 import { MessageForm } from './message-form'
 import { UserSidebar } from './user-sidebar'
+import { useAuth } from '@clerk/nextjs'
 
 export function Chat({
   party,
@@ -24,21 +24,21 @@ export function Chat({
   topicsSidebar: React.ReactNode
   messageFeed: React.ReactNode
 }) {
-  const { data: session } = useSession()
+  const { getToken } = useAuth()
 
   const { connected, connect, disconnect, joinParty, joinTopic } = useSocket()
 
   useEffect(() => {
-    if (!session) return
-
-    console.log(session)
-
-    connect((session as any).access_token)
+    getToken().then((token) => {
+      if (token) {
+        connect(token)
+      }
+    })
 
     return () => {
       disconnect()
     }
-  }, [session, connect, disconnect])
+  }, [getToken, connect, disconnect])
 
   useEffect(() => {
     if (!connected) return

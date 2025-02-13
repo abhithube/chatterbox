@@ -1,17 +1,16 @@
-import NextAuth from 'next-auth'
-import { NextRequest, NextResponse } from 'next/server'
-import authConfig from './auth.config'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
 
-const { auth } = NextAuth(authConfig)
+const isProtectedRoute = createRouteMatcher(['/'])
 
-export default async function middleware(request: NextRequest) {
-  const session = await auth()
+export default clerkMiddleware(async (auth, req) => {
+  if (isProtectedRoute(req)) await auth.protect()
+})
 
-  if (request.nextUrl.pathname.startsWith('/api/auth')) {
-    if (session) {
-      return NextResponse.redirect(new URL('/', request.url))
-    }
-  } else if (!session) {
-    return NextResponse.redirect(new URL('/api/auth/signin', request.url))
-  }
+export const config = {
+  matcher: [
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
+  ],
 }

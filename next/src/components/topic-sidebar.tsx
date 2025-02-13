@@ -1,4 +1,3 @@
-import { auth } from '@/auth'
 import { Dialog, DialogTrigger } from '@/components/ui/dialog'
 import {
   Sidebar,
@@ -16,6 +15,7 @@ import { Topic } from '@/lib/types'
 import Link from 'next/link'
 import { PartySelector } from './party-selector'
 import { TopicDialog } from './topic-dialog'
+import { auth } from '@clerk/nextjs/server'
 
 export async function TopicSidebar({
   partyId,
@@ -26,7 +26,7 @@ export async function TopicSidebar({
   topicId?: string
   topics: Topic[]
 }) {
-  const userId = (await auth())!.user!.id!
+  const userId = (await auth()).userId!
 
   return (
     <Sidebar side="left">
