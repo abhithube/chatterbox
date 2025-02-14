@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib'
+import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
 import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns'
@@ -14,6 +15,11 @@ export class ChatterboxMessagesStack extends cdk.Stack {
       emptyOnDelete: true,
     })
 
+    const certificate = new acm.Certificate(this, 'Certificate', {
+      domainName: 'api.chatterbox.abhithube.com',
+      validation: acm.CertificateValidation.fromDns(),
+    })
+
     const fargateService =
       new ecs_patterns.ApplicationLoadBalancedFargateService(
         this,
@@ -25,6 +31,7 @@ export class ChatterboxMessagesStack extends cdk.Stack {
               PEM_PUBLIC_KEY: process.env.PEM_PUBLIC_KEY!,
             },
           },
+          certificate,
         },
       )
     fargateService.targetGroup.configureHealthCheck({
