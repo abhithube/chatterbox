@@ -1,9 +1,0 @@
-{
-  "name": "@abhithube/chatterbox-messages",
-  "devDependencies": {
-    "@pulumi/pulumi": "^3",
-    "prettier": "^3",
-    "sst": "^3",
-    "typescript": "^5"
-  }
-}
