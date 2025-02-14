@@ -3,12 +3,34 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
 import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns'
+import * as sns from 'aws-cdk-lib/aws-sns'
+import * as sns_subscriptions from 'aws-cdk-lib/aws-sns-subscriptions'
+import * as sqs from 'aws-cdk-lib/aws-sqs'
 import { Construct } from 'constructs'
 import 'dotenv/config'
 
 export class ChatterboxMessagesStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props)
+
+    const queue = new sqs.Queue(this, 'Queue', {
+      fifo: true,
+      contentBasedDeduplication: true,
+    })
+
+    const usersTopic = sns.Topic.fromTopicArn(
+      this,
+      'UsersTopic',
+      process.env.USERS_TOPIC_ARN!,
+    )
+    const partiesTopic = sns.Topic.fromTopicArn(
+      this,
+      'PartiesTopic',
+      process.env.PARTIES_TOPIC_ARN!,
+    )
+
+    usersTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
+    partiesTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
 
     const repository = new ecr.Repository(this, 'Repository', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,
