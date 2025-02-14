@@ -10,6 +10,7 @@ use socketioxide::{
     SocketIo,
 };
 use tokio::net::TcpListener;
+use tracing::debug;
 
 const BASE_PATH: &str = "/api/v1";
 
@@ -115,7 +116,7 @@ async fn on_party_join(
     let room = format!("party:{}", party_id);
     socket.join(room.clone());
 
-    println!("user {} joined party {}", user.id, party_id);
+    debug!("user {} joined party {}", user.id, party_id);
 
     socket.extensions.insert(SocketParty {
         id: party_id.clone(),
@@ -147,7 +148,7 @@ async fn on_topic_join(
 
     socket.join(format!("topic:{}", topic_id));
 
-    println!("user {} joined topic {}", user.id, topic_id);
+    debug!("user {} joined topic {}", user.id, topic_id);
 
     socket.extensions.insert(SocketTopic {
         id: topic_id.clone(),
@@ -173,6 +174,11 @@ async fn on_message_create(
         },
     };
 
+    debug!(
+        r#"user {} sending message "{}" to topic {}"#,
+        message.author.id, message.content, topic.id
+    );
+
     io.to(format!("topic:{}", topic.id))
         .emit("message:created", &message)
         .await
@@ -181,6 +187,8 @@ async fn on_message_create(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::fmt::init();
+
     let pem_public_key = env::var("PEM_PUBLIC_KEY")?;
 
     let (layer, io) = SocketIo::builder()

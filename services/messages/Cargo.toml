@@ -8,6 +8,8 @@ anyhow = { version = "1.0.95", default-features = false }
 axum = { version = "0.8.1", default-features = false, features = [
   "http1",
   "tokio",
+  "tower-log",
+  "tracing",
 ] }
 chrono = { version = "0.4.39", default-features = false, features = ["serde"] }
 jsonwebtoken = { version = "9.3.1", default-features = false, features = [
@@ -17,10 +19,16 @@ serde = { version = "1.0.217", default-features = false }
 socketioxide = { version = "0.16.1", default-features = false, features = [
   "extensions",
   "state",
+  "tracing",
 ] }
 tokio = { version = "1.43.0", default-features = false, features = [
   "macros",
   "rt-multi-thread",
+] }
+tracing = { version = "0.1.41", default-features = false }
+tracing-subscriber = { version = "0.3.19", default-features = false, features = [
+  "ansi",
+  "tracing-log",
 ] }
 
 [profile.release]
