@@ -1,18 +1,25 @@
-FROM node:23-alpine AS base
-WORKDIR /app
+ARG TARGET="x86_64-unknown-linux-musl"
 
-FROM base AS deps
-COPY package.json package-lock.json ./
-RUN npm ci --omit=dev --ignore-scripts
+FROM rust:1.84-alpine AS base
+WORKDIR /app
+ARG TARGET
+RUN apk add --no-cache musl-dev
+RUN rustup target add $TARGET
+RUN rustup default nightly
+RUN cargo install cargo-chef
+
+FROM base AS prepare
+COPY . .
+RUN cargo chef prepare --recipe-path recipe.json
 
 FROM base AS build
-COPY package.json package-lock.json ./
-RUN npm ci
+COPY --from=prepare /app/recipe.json recipe.json
+RUN cargo chef cook --target $TARGET --release --recipe-path recipe.json
 COPY . .
-RUN npm run build
+RUN cargo build --target $TARGET --release
 
-FROM base
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=build /app/dist ./dist
+FROM gcr.io/distroless/static AS release
+ARG TARGET
 EXPOSE 80
-CMD ["node", "dist/index.js"]
+COPY --from=build /app/target/$TARGET/release/chatterbox-messages /
+ENTRYPOINT ["/chatterbox-messages"]

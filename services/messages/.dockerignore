@@ -1,3 +1,4 @@
 /.sst/
-/dist/
+/infra/
 /node_modules/
+/target/
