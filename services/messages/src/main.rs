@@ -1,7 +1,10 @@
 use std::{env, sync::Arc};
 
 use anyhow::anyhow;
-use axum::{routing, Router};
+use axum::{
+    http::{header, HeaderValue, Method},
+    routing, Router,
+};
 use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use socketioxide::{
@@ -10,7 +13,7 @@ use socketioxide::{
     SocketIo,
 };
 use tokio::net::TcpListener;
-use tower_http::trace::TraceLayer;
+use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::debug;
 
 const BASE_PATH: &str = "/api/v1";
@@ -195,6 +198,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .ok()
         .and_then(|e| e.parse().ok())
         .unwrap_or(80);
+    let cors_origins_raw = env::var("CORS_ORIGINS").map(Some).unwrap_or_default();
 
     let (socketio_layer, io) = SocketIo::builder()
         .with_state(Arc::new(SocketState {
@@ -206,13 +210,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     io.ns("/", on_connect.with(auth_middleware));
 
-    let app = Router::new()
+    let mut app = Router::new()
         .nest(
             BASE_PATH,
             Router::new().route("/health", routing::get(|| async { "OK" })),
         )
         .layer(TraceLayer::new_for_http())
         .layer(socketio_layer);
+
+    if let Some(cors_origins_raw) = cors_origins_raw {
+        let cors_origins = cors_origins_raw
+            .split(",")
+            .filter_map(|e| e.parse::<HeaderValue>().ok())
+            .collect::<Vec<_>>();
+
+        app = app.layer(
+            CorsLayer::new()
+                .allow_methods(Method::GET)
+                .allow_headers([header::AUTHORIZATION])
+                .allow_origin(cors_origins),
+        )
+    }
 
     let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     axum::serve(listener, app).await?;

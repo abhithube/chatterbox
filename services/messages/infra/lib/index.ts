@@ -28,6 +28,7 @@ export class ChatterboxMessagesStack extends cdk.Stack {
           taskImageOptions: {
             image: ecs.ContainerImage.fromEcrRepository(repository),
             environment: {
+              CORS_ORIGINS: process.env.CORS_ORIGINS!,
               PEM_PUBLIC_KEY: process.env.PEM_PUBLIC_KEY!,
             },
           },
