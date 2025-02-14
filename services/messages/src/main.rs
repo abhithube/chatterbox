@@ -2,6 +2,7 @@ use std::{env, sync::Arc};
 
 use anyhow::anyhow;
 use axum::{routing, Router};
+use chrono::{DateTime, Utc};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use socketioxide::{
     extract::{AckSender, Data, Extension, MaybeExtension, SocketRef, State},
@@ -43,6 +44,31 @@ struct SocketTopic {
     pub id: String,
 }
 
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct IncomingMessage {
+    pub id: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Message {
+    pub id: String,
+    pub content: String,
+    pub created_at: DateTime<Utc>,
+    pub author: Author,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct Author {
+    pub id: String,
+    pub name: String,
+    pub image: Option<String>,
+}
+
 fn auth_middleware(
     socket: SocketRef,
     State(state): State<Arc<SocketState>>,
@@ -71,6 +97,7 @@ fn auth_middleware(
 fn on_connect(socket: SocketRef, Extension(_user): Extension<SocketUser>) {
     socket.on("party:join", on_party_join);
     socket.on("topic:join", on_topic_join);
+    socket.on("message:create", on_message_create);
 }
 
 async fn on_party_join(
@@ -118,7 +145,7 @@ async fn on_topic_join(
         socket.leave(format!("topic:{}", topic.id));
     }
 
-    socket.join(format!("party:{}", topic_id));
+    socket.join(format!("topic:{}", topic_id));
 
     println!("user {} joined topic {}", user.id, topic_id);
 
@@ -127,6 +154,29 @@ async fn on_topic_join(
     });
 
     ack.send(&topic_id).unwrap()
+}
+
+async fn on_message_create(
+    io: SocketIo,
+    Extension(user): Extension<SocketUser>,
+    Extension(topic): Extension<SocketTopic>,
+    Data(data): Data<IncomingMessage>,
+) {
+    let message = Message {
+        id: data.id,
+        content: data.content,
+        created_at: data.created_at,
+        author: Author {
+            id: user.id,
+            name: user.name,
+            image: user.image,
+        },
+    };
+
+    io.to(format!("topic:{}", topic.id))
+        .emit("message:created", &message)
+        .await
+        .unwrap();
 }
 
 #[tokio::main]

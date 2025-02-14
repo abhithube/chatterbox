@@ -32,7 +32,7 @@ export type Member = {
 export type Message = {
   id: string
   body: string
-  createdAt: Date
+  createdAt: string
   author: Author
 }
 
