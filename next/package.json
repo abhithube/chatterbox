@@ -31,7 +31,6 @@
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.54.2",
     "socket.io-client": "^4.8.1",
-    "sst": "^3.8.8",
     "svix": "^1.45.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
