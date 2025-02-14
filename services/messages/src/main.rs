@@ -191,6 +191,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt::init();
 
     let pem_public_key = env::var("PEM_PUBLIC_KEY")?;
+    let port = env::var("PORT")
+        .ok()
+        .and_then(|e| e.parse().ok())
+        .unwrap_or(80);
 
     let (socketio_layer, io) = SocketIo::builder()
         .with_state(Arc::new(SocketState {
@@ -210,7 +214,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(TraceLayer::new_for_http())
         .layer(socketio_layer);
 
-    let listener = TcpListener::bind("0.0.0.0:8000").await?;
+    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
     axum::serve(listener, app).await?;
 
     Ok(())
