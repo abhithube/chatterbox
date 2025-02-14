@@ -1,21 +1,9 @@
 {
   "name": "@abhithube/chatterbox-messages",
-  "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc"
-  },
-  "dependencies": {
-    "express": "^5",
-    "jose": "^5",
-    "socket.io": "^4",
-    "sst": "^3"
-  },
   "devDependencies": {
     "@pulumi/pulumi": "^3",
-    "@types/aws-lambda": "^8",
-    "@types/express": "^5",
     "prettier": "^3",
-    "tsx": "^4",
+    "sst": "^3",
     "typescript": "^5"
   }
 }
