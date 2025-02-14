@@ -2,6 +2,7 @@
 
 import { db as drizzle, parties, partyUsers, topics, users } from './drizzle'
 import {
+  publishMemberCreated,
   publishPartyCreated,
   publishTopicCreated,
   publishUserCreated,
@@ -11,7 +12,7 @@ import { nanoid } from 'nanoid'
 import { isMember } from './queries'
 import { auth, currentUser, UserJSON } from '@clerk/nextjs/server'
 
-export async function createUser(data: UserJSON) {
+export async function createUser(data: UserJSON): Promise<User> {
   const user: User = {
     id: data.id,
     email: data.email_addresses[0].email_address,
@@ -27,15 +28,22 @@ export async function createUser(data: UserJSON) {
       image: user.image,
     })
 
-    await publishUserCreated(user)
+    await publishUserCreated({
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      image: user.image,
+    })
   })
+
+  return user
 }
 
 type CreateParty = {
   title: string
 }
 
-export async function createParty(data: CreateParty) {
+export async function createParty(data: CreateParty): Promise<PartyDetails> {
   const user = (await currentUser())!
 
   const topic: Topic = {
@@ -75,8 +83,25 @@ export async function createParty(data: CreateParty) {
       partyId: party.id,
     })
 
-    await publishPartyCreated(party)
+    await publishPartyCreated({
+      id: party.id,
+      title: party.title,
+    })
+
+    await publishMemberCreated({
+      userId: member.id,
+      partyId: party.id,
+      isAdmin: member.isAdmin,
+    })
+
+    await publishTopicCreated({
+      id: topic.id,
+      title: topic.title,
+      partyId: party.id,
+    })
   })
+
+  return party
 }
 
 type CreateTopic = {
@@ -84,7 +109,7 @@ type CreateTopic = {
   partyId: string
 }
 
-export async function createTopic(data: CreateTopic) {
+export async function createTopic(data: CreateTopic): Promise<Topic> {
   const userId = (await auth()).userId!
 
   const topic: Topic = {
@@ -103,6 +128,12 @@ export async function createTopic(data: CreateTopic) {
       partyId: data.partyId,
     })
 
-    await publishTopicCreated(data.partyId, topic)
+    await publishTopicCreated({
+      id: topic.id,
+      title: topic.title,
+      partyId: data.partyId,
+    })
   })
+
+  return topic
 }
