@@ -1,16 +1,34 @@
 import * as cdk from 'aws-cdk-lib'
+import * as ecr from 'aws-cdk-lib/aws-ecr'
+import * as ecs from 'aws-cdk-lib/aws-ecs'
+import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns'
 import { Construct } from 'constructs'
-// import * as sqs from 'aws-cdk-lib/aws-sqs';
+import 'dotenv/config'
 
 export class ChatterboxMessagesStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props)
 
-    // The code that defines your stack goes here
+    const repository = new ecr.Repository(this, 'Repository', {
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
+      emptyOnDelete: true,
+    })
 
-    // example resource
-    // const queue = new sqs.Queue(this, 'InfraQueue', {
-    //   visibilityTimeout: cdk.Duration.seconds(300)
-    // });
+    const fargateService =
+      new ecs_patterns.ApplicationLoadBalancedFargateService(
+        this,
+        'FargateService',
+        {
+          taskImageOptions: {
+            image: ecs.ContainerImage.fromEcrRepository(repository),
+            environment: {
+              PEM_PUBLIC_KEY: process.env.PEM_PUBLIC_KEY!,
+            },
+          },
+        },
+      )
+    fargateService.targetGroup.configureHealthCheck({
+      path: '/api/v1/health',
+    })
   }
 }
