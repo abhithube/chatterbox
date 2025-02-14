@@ -10,6 +10,7 @@ use socketioxide::{
     SocketIo,
 };
 use tokio::net::TcpListener;
+use tower_http::trace::TraceLayer;
 use tracing::debug;
 
 const BASE_PATH: &str = "/api/v1";
@@ -191,7 +192,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let pem_public_key = env::var("PEM_PUBLIC_KEY")?;
 
-    let (layer, io) = SocketIo::builder()
+    let (socketio_layer, io) = SocketIo::builder()
         .with_state(Arc::new(SocketState {
             decoding_key: DecodingKey::from_rsa_pem(pem_public_key.as_bytes())?,
             validation: Validation::new(Algorithm::RS256),
@@ -206,7 +207,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             BASE_PATH,
             Router::new().route("/health", routing::get(|| async { "OK" })),
         )
-        .layer(layer);
+        .layer(TraceLayer::new_for_http())
+        .layer(socketio_layer);
 
     let listener = TcpListener::bind("0.0.0.0:8000").await?;
     axum::serve(listener, app).await?;
