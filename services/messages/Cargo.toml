@@ -5,6 +5,11 @@ edition = "2021"
 
 [dependencies]
 anyhow = { version = "1.0.95", default-features = false }
+aws-config = { version = "1.5.16", default-features = false }
+aws-sdk-sqs = { version = "1.59.0", default-features = false, features = [
+  "rt-tokio",
+  "rustls",
+] }
 axum = { version = "0.8.1", default-features = false, features = [
   "http1",
   "tokio",

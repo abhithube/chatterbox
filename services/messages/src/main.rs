@@ -1,6 +1,7 @@
 use std::{env, sync::Arc};
 
 use anyhow::anyhow;
+use aws_config::BehaviorVersion;
 use axum::{
     http::{header, HeaderValue, Method},
     routing, Router,
@@ -12,7 +13,7 @@ use socketioxide::{
     handler::ConnectHandler,
     SocketIo,
 };
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, task, try_join};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::debug;
 
@@ -199,6 +200,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|e| e.parse().ok())
         .unwrap_or(80);
     let cors_origins_raw = env::var("CORS_ORIGINS").map(Some).unwrap_or_default();
+    let queue_url = env::var("QUEUE_URL")?;
+
+    let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    let sqs = aws_sdk_sqs::Client::new(&config);
 
     let (socketio_layer, io) = SocketIo::builder()
         .with_state(Arc::new(SocketState {
@@ -232,8 +237,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
     }
 
-    let listener = TcpListener::bind(format!("0.0.0.0:{}", port)).await?;
-    axum::serve(listener, app).await?;
+    let queue_task = task::spawn(async move {
+        loop {
+            let result = sqs
+                .receive_message()
+                .queue_url(&queue_url)
+                .wait_time_seconds(20)
+                .max_number_of_messages(10)
+                .send()
+                .await
+                .unwrap();
+
+            if let Some(messages) = result.messages {
+                for message in messages {
+                    sqs.delete_message()
+                        .queue_url(&queue_url)
+                        .receipt_handle(message.receipt_handle.unwrap())
+                        .send()
+                        .await
+                        .unwrap();
+                }
+            }
+        }
+    });
+
+    let server_task = task::spawn(async move {
+        let listener = TcpListener::bind(format!("0.0.0.0:{}", port))
+            .await
+            .unwrap();
+        axum::serve(listener, app).await.unwrap();
+    });
+
+    try_join!(queue_task, server_task)?;
 
     Ok(())
 }
