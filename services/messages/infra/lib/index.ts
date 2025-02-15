@@ -33,7 +33,7 @@ export class ChatterboxMessagesStack extends cdk.Stack {
     usersTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
     partiesTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
 
-    new dynamodb.TableV2(this, 'Table', {
+    const table = new dynamodb.TableV2(this, 'Table', {
       partitionKey: {
         name: 'pk',
         type: dynamodb.AttributeType.STRING,
@@ -64,6 +64,10 @@ export class ChatterboxMessagesStack extends cdk.Stack {
             environment: {
               CORS_ORIGINS: process.env.CORS_ORIGINS!,
               PEM_PUBLIC_KEY: process.env.PEM_PUBLIC_KEY!,
+              AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID!,
+              AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY!,
+              TABLE_NAME: table.tableArn,
+              QUEUE_URL: queue.queueUrl,
             },
           },
           certificate,
