@@ -2,12 +2,12 @@ use std::{env, sync::Arc};
 
 use anyhow::anyhow;
 use aws_config::BehaviorVersion;
-use aws_sdk_dynamodb::types::AttributeValue;
 use axum::{
     http::{header, HeaderValue, Method},
     routing, Router,
 };
 use chrono::{DateTime, Utc};
+use database::Database;
 use jsonwebtoken::{Algorithm, DecodingKey, Validation};
 use socketioxide::{
     extract::{AckSender, Data, Extension, MaybeExtension, SocketRef, State},
@@ -18,14 +18,15 @@ use tokio::{net::TcpListener, task, try_join};
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 use tracing::debug;
 
+mod database;
+
 const BASE_PATH: &str = "/api/v1";
 
 #[derive(Clone)]
 struct SocketState {
     pub decoding_key: DecodingKey,
     pub validation: Validation,
-    pub dynamodb: aws_sdk_dynamodb::Client,
-    pub table_name: String,
+    pub database: Database,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -118,16 +119,8 @@ async fn on_party_join(
     Data(party_id): Data<String>,
     ack: AckSender,
 ) {
-    let output = state
-        .dynamodb
-        .get_item()
-        .table_name(&state.table_name)
-        .key("pk", AttributeValue::S(format!("PARTY#{}", party_id)))
-        .key("sk", AttributeValue::S(format!("MEMBER#{}", user.id)))
-        .send()
-        .await
-        .unwrap();
-    if output.item.is_none() {
+    let is_member = state.database.is_member(&party_id, &user.id).await.unwrap();
+    if !is_member {
         return;
     }
 
@@ -165,16 +158,12 @@ async fn on_topic_join(
     Data(topic_id): Data<String>,
     ack: AckSender,
 ) {
-    let output = state
-        .dynamodb
-        .get_item()
-        .table_name(&state.table_name)
-        .key("pk", AttributeValue::S(format!("PARTY#{}", party.id)))
-        .key("sk", AttributeValue::S(format!("TOPIC#{}", topic_id)))
-        .send()
+    let topic_exists = state
+        .database
+        .topic_exists(&party.id, &topic_id)
         .await
         .unwrap();
-    if output.item.is_none() {
+    if !topic_exists {
         return;
     }
 
@@ -242,8 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with_state(Arc::new(SocketState {
             decoding_key: DecodingKey::from_rsa_pem(pem_public_key.as_bytes())?,
             validation: Validation::new(Algorithm::RS256),
-            dynamodb,
-            table_name,
+            database: Database::new(dynamodb, table_name),
         }))
         .req_path(format!("{}/socket.io", BASE_PATH))
         .build_layer();
