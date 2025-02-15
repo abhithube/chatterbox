@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
+import * as ec2 from 'aws-cdk-lib/aws-ec2'
 import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
 import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns'
@@ -13,6 +14,10 @@ import 'dotenv/config'
 export class ChatterboxMessagesStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props)
+
+    const vpc = ec2.Vpc.fromLookup(this, 'Vpc', {
+      isDefault: true,
+    })
 
     const queue = new sqs.Queue(this, 'Queue', {
       fifo: true,
@@ -59,6 +64,7 @@ export class ChatterboxMessagesStack extends cdk.Stack {
         this,
         'FargateService',
         {
+          vpc,
           taskImageOptions: {
             image: ecs.ContainerImage.fromEcrRepository(repository),
             environment: {
@@ -71,6 +77,7 @@ export class ChatterboxMessagesStack extends cdk.Stack {
             },
           },
           certificate,
+          assignPublicIp: true,
         },
       )
     fargateService.targetGroup.configureHealthCheck({
