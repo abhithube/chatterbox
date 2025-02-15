@@ -1,4 +1,11 @@
-import { partyUsers, parties, Db } from './drizzle'
+import {
+  partyUsers,
+  parties,
+  Db,
+  topics,
+  PartyUserRow,
+  TopicRow,
+} from './drizzle'
 import { Party, PartyDetails } from './types'
 import { and, eq, exists } from 'drizzle-orm'
 
@@ -40,11 +47,13 @@ export async function getParty(
         columns: {
           id: true,
           title: true,
+          partyId: true,
         },
       },
       partyUsers: {
         columns: {
           isAdmin: true,
+          partyId: true,
         },
         with: {
           user: true,
@@ -67,20 +76,28 @@ export async function getParty(
       name: row.user.name,
       image: row.user.image,
       isAdmin: row.isAdmin,
+      partyId: row.partyId,
     })),
   }
 
   return party
 }
 
-export async function isMember(
+export async function selectPartyUser(
   db: Db,
   partyId: string,
   userId: string,
-): Promise<boolean> {
-  const row = await db.query.partyUsers.findFirst({
+): Promise<PartyUserRow | undefined> {
+  return db.query.partyUsers.findFirst({
     where: and(eq(partyUsers.partyId, partyId), eq(partyUsers.userId, userId)),
   })
+}
 
-  return !!row
+export async function selectTopic(
+  db: Db,
+  id: string,
+): Promise<TopicRow | undefined> {
+  return db.query.topics.findFirst({
+    where: eq(topics.id, id),
+  })
 }

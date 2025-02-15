@@ -1,139 +1,189 @@
 'use server'
 
-import { db as drizzle, parties, partyUsers, topics, users } from './drizzle'
+import {
+  db,
+  MessageCreate,
+  messages,
+  parties,
+  PartyCreate,
+  partyUsers,
+  TopicCreate,
+  topics,
+  users,
+} from './drizzle'
 import {
   publishMemberCreated,
   publishPartyCreated,
   publishTopicCreated,
   publishUserCreated,
 } from './events'
-import { Member, PartyDetails, Topic, User } from './types'
+import { Message, PartyDetails, Topic, User } from './types'
 import { nanoid } from 'nanoid'
-import { isMember } from './queries'
+import { selectPartyUser, selectTopic } from './queries'
 import { auth, currentUser, UserJSON } from '@clerk/nextjs/server'
 
 export async function createUser(data: UserJSON): Promise<User> {
-  const user: User = {
-    id: data.id,
-    email: data.email_addresses[0].email_address,
-    name:
-      (data.first_name ?? '') + (data.last_name ? ` ${data.last_name}` : ''),
-    image: data.image_url,
-  }
+  const email = data.email_addresses[0].email_address
 
-  await drizzle.transaction(async (tx) => {
-    await tx.insert(users).values({
-      id: user.id,
-      name: user.name,
-      image: user.image,
-    })
+  const user = await db.transaction(async (tx) => {
+    const [userRow] = await tx
+      .insert(users)
+      .values({
+        id: data.id,
+        name:
+          (data.first_name ?? '') +
+          (data.last_name ? ` ${data.last_name}` : ''),
+        image: data.image_url,
+      })
+      .returning()
 
     await publishUserCreated({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      image: user.image,
+      ...userRow,
+      email,
     })
+
+    const user: User = {
+      id: userRow.id,
+      email,
+      name: userRow.name,
+      image: userRow.image,
+    }
+
+    return user
   })
 
   return user
 }
 
-type CreateParty = {
-  title: string
-}
-
-export async function createParty(data: CreateParty): Promise<PartyDetails> {
+export async function createParty(data: PartyCreate): Promise<PartyDetails> {
   const user = (await currentUser())!
 
-  const topic: Topic = {
-    id: nanoid(),
-    title: 'general',
-  }
+  const party = await db.transaction(async (tx) => {
+    const [partyRow] = await tx
+      .insert(parties)
+      .values({
+        id: nanoid(),
+        title: data.title,
+      })
+      .returning()
 
-  const member: Member = {
-    id: user.id,
-    name: user.fullName!,
-    image: user.imageUrl,
-    isAdmin: true,
-  }
+    const [partyUserRow] = await tx
+      .insert(partyUsers)
+      .values({
+        partyId: partyRow.id,
+        userId: user.id,
+        isAdmin: true,
+      })
+      .returning()
 
-  const party: PartyDetails = {
-    id: nanoid(),
-    title: data.title,
-    topics: [topic],
-    members: [member],
-  }
+    const [topicRow] = await tx
+      .insert(topics)
+      .values({
+        id: nanoid(),
+        title: 'general',
+        partyId: partyRow.id,
+      })
+      .returning()
 
-  await drizzle.transaction(async (tx) => {
-    await tx.insert(parties).values({
-      id: party.id,
-      title: party.title,
-    })
+    await publishPartyCreated(partyRow)
 
-    await tx.insert(partyUsers).values({
-      partyId: party.id,
-      userId: member.id,
-      isAdmin: member.isAdmin,
-    })
+    await publishMemberCreated(partyUserRow)
 
-    await tx.insert(topics).values({
-      id: topic.id,
-      title: topic.title,
-      partyId: party.id,
-    })
+    await publishTopicCreated(topicRow)
 
-    await publishPartyCreated({
-      id: party.id,
-      title: party.title,
-    })
+    const party: PartyDetails = {
+      id: partyRow.id,
+      title: partyRow.title,
+      topics: [
+        {
+          id: topicRow.id,
+          title: topicRow.title,
+        },
+      ],
+      members: [
+        {
+          id: partyUserRow.userId,
+          name: user.fullName!,
+          image: user.imageUrl,
+          isAdmin: partyUserRow.isAdmin,
+        },
+      ],
+    }
 
-    await publishMemberCreated({
-      userId: member.id,
-      partyId: party.id,
-      isAdmin: member.isAdmin,
-    })
-
-    await publishTopicCreated({
-      id: topic.id,
-      title: topic.title,
-      partyId: party.id,
-    })
+    return party
   })
 
   return party
 }
 
-type CreateTopic = {
-  title: string
-  partyId: string
-}
-
-export async function createTopic(data: CreateTopic): Promise<Topic> {
+export async function createTopic(data: TopicCreate): Promise<Topic> {
   const userId = (await auth()).userId!
 
-  const topic: Topic = {
-    id: nanoid(),
-    title: data.title,
-  }
-
-  await drizzle.transaction(async (tx) => {
-    if (!(await isMember(tx, data.partyId, userId))) {
+  const topic = await db.transaction(async (tx) => {
+    const partyUserRow = await selectPartyUser(tx, data.partyId, userId)
+    if (!partyUserRow) {
       return tx.rollback()
     }
 
-    await drizzle.insert(topics).values({
-      id: topic.id,
-      title: topic.title,
-      partyId: data.partyId,
-    })
+    const [topicRow] = await tx
+      .insert(topics)
+      .values({
+        id: nanoid(),
+        title: data.title,
+        partyId: data.partyId,
+      })
+      .returning()
 
-    await publishTopicCreated({
-      id: topic.id,
-      title: topic.title,
-      partyId: data.partyId,
-    })
+    await publishTopicCreated(topicRow)
+
+    const topic: Topic = {
+      id: topicRow.id,
+      title: topicRow.title,
+    }
+
+    return topic
   })
 
   return topic
+}
+
+export async function createMessage(data: MessageCreate): Promise<Message> {
+  const user = (await currentUser())!
+
+  const message = await db.transaction(async (tx) => {
+    const topicRow = await selectTopic(tx, data.topicId)
+    if (!topicRow) {
+      return tx.rollback()
+    }
+
+    const partyUserRow = await selectPartyUser(tx, topicRow.partyId, user.id)
+    if (!partyUserRow) {
+      return tx.rollback()
+    }
+
+    const [messageRow] = await tx
+      .insert(messages)
+      .values({
+        id: nanoid(),
+        content: data.content,
+        topicId: topicRow.id,
+        userId: partyUserRow.userId,
+      })
+      .returning()
+
+    const message: Message = {
+      id: messageRow.id,
+      content: messageRow.content,
+      createdAt: messageRow.createdAt.toUTCString(),
+      author: {
+        id: messageRow.userId,
+        name: user.fullName!,
+        image: user.imageUrl,
+      },
+    }
+
+    return message
+  })
+
+  return message
 }

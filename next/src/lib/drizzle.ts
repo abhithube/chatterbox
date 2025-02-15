@@ -39,7 +39,9 @@ export const topics = pgTable('topics', {
 export const messages = pgTable('messages', {
   id: text().primaryKey(),
   content: text().notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .defaultNow()
+    .notNull(),
   topicId: text('topic_id').notNull(),
   userId: text('user_id').notNull(),
 })
@@ -102,3 +104,14 @@ export const db = drizzle(process.env.DATABASE_URL!, {
 })
 
 export type Db = PgDatabase<NeonQueryResultHKT, typeof schema>
+
+export type UserRow = typeof topics.$inferSelect
+export type UserCreate = Omit<typeof users.$inferInsert, 'id'>
+export type PartyRow = typeof parties.$inferSelect
+export type PartyCreate = Omit<typeof parties.$inferInsert, 'id'>
+export type PartyUserRow = typeof partyUsers.$inferSelect
+export type PartyUserCreate = typeof partyUsers.$inferInsert
+export type TopicRow = typeof topics.$inferSelect
+export type TopicCreate = Omit<typeof topics.$inferInsert, 'id'>
+export type MessageRow = typeof messages.$inferSelect
+export type MessageCreate = Omit<typeof messages.$inferInsert, 'id' | 'userId'>

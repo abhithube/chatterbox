@@ -31,7 +31,7 @@ export type Member = {
 
 export type Message = {
   id: string
-  body: string
+  content: string
   createdAt: string
   author: Author
 }

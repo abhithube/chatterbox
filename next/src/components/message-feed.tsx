@@ -4,7 +4,8 @@ import { Message, Topic } from '@/lib/types'
 const MESSAGES: Message[] = [
   {
     id: '2',
-    body: 'Lorem ipsum dolor sit amet consectetur adipisicing elit. Impedit, quae esse. Accusamus modi, animi aliquam at voluptatibus possimus, voluptatum quasi excepturi blanditiis suscipit facilis. Itaque maiores aperiam corporis ut possimus.',
+    content:
+      'Lorem ipsum dolor sit amet consectetur adipisicing elit. Impedit, quae esse. Accusamus modi, animi aliquam at voluptatibus possimus, voluptatum quasi excepturi blanditiis suscipit facilis. Itaque maiores aperiam corporis ut possimus.',
     createdAt: new Date(),
     author: {
       id: '1',
@@ -14,7 +15,7 @@ const MESSAGES: Message[] = [
   },
   {
     id: '1',
-    body: 'Hello world!',
+    content: 'Hello world!',
     createdAt: new Date(Date.now() - 1000),
     author: {
       id: '2',
@@ -50,7 +51,7 @@ export async function MessageFeed({ topic }: { topic: Topic }) {
                 {new Date(message.createdAt).toLocaleString()}
               </span>
             </div>
-            <p>{message.body}</p>
+            <p>{message.content}</p>
           </div>
         </div>
       ))}
