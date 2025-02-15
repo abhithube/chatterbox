@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as ecr from 'aws-cdk-lib/aws-ecr'
 import * as ecs from 'aws-cdk-lib/aws-ecs'
 import * as ecs_patterns from 'aws-cdk-lib/aws-ecs-patterns'
@@ -31,6 +32,17 @@ export class ChatterboxMessagesStack extends cdk.Stack {
 
     usersTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
     partiesTopic.addSubscription(new sns_subscriptions.SqsSubscription(queue))
+
+    new dynamodb.TableV2(this, 'Table', {
+      partitionKey: {
+        name: 'pk',
+        type: dynamodb.AttributeType.STRING,
+      },
+      sortKey: {
+        name: 'sk',
+        type: dynamodb.AttributeType.STRING,
+      },
+    })
 
     const repository = new ecr.Repository(this, 'Repository', {
       removalPolicy: cdk.RemovalPolicy.DESTROY,

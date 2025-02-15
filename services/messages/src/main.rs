@@ -2,6 +2,7 @@ use std::{env, sync::Arc};
 
 use anyhow::anyhow;
 use aws_config::BehaviorVersion;
+use aws_sdk_dynamodb::types::AttributeValue;
 use axum::{
     http::{header, HeaderValue, Method},
     routing, Router,
@@ -23,6 +24,8 @@ const BASE_PATH: &str = "/api/v1";
 struct SocketState {
     pub decoding_key: DecodingKey,
     pub validation: Validation,
+    pub dynamodb: aws_sdk_dynamodb::Client,
+    pub table_name: String,
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -109,11 +112,25 @@ fn on_connect(socket: SocketRef, Extension(_user): Extension<SocketUser>) {
 async fn on_party_join(
     io: SocketIo,
     socket: SocketRef,
+    State(state): State<Arc<SocketState>>,
     Extension(user): Extension<SocketUser>,
     MaybeExtension(party): MaybeExtension<SocketParty>,
     Data(party_id): Data<String>,
     ack: AckSender,
 ) {
+    let output = state
+        .dynamodb
+        .get_item()
+        .table_name(&state.table_name)
+        .key("pk", AttributeValue::S(format!("PARTY#{}", party_id)))
+        .key("sk", AttributeValue::S(format!("MEMBER#{}", user.id)))
+        .send()
+        .await
+        .unwrap();
+    if output.item.is_none() {
+        return;
+    }
+
     if let Some(party) = party {
         socket.leave(format!("party:{}", party.id));
     }
@@ -141,12 +158,26 @@ async fn on_party_join(
 
 async fn on_topic_join(
     socket: SocketRef,
+    State(state): State<Arc<SocketState>>,
     Extension(user): Extension<SocketUser>,
-    Extension(_party): Extension<SocketParty>,
+    Extension(party): Extension<SocketParty>,
     MaybeExtension(topic): MaybeExtension<SocketTopic>,
     Data(topic_id): Data<String>,
     ack: AckSender,
 ) {
+    let output = state
+        .dynamodb
+        .get_item()
+        .table_name(&state.table_name)
+        .key("pk", AttributeValue::S(format!("PARTY#{}", party.id)))
+        .key("sk", AttributeValue::S(format!("TOPIC#{}", topic_id)))
+        .send()
+        .await
+        .unwrap();
+    if output.item.is_none() {
+        return;
+    }
+
     if let Some(topic) = topic {
         socket.leave(format!("topic:{}", topic.id));
     }
@@ -200,15 +231,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and_then(|e| e.parse().ok())
         .unwrap_or(80);
     let cors_origins_raw = env::var("CORS_ORIGINS").map(Some).unwrap_or_default();
+    let table_name = env::var("TABLE_NAME")?;
     let queue_url = env::var("QUEUE_URL")?;
 
     let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
+    let dynamodb = aws_sdk_dynamodb::Client::new(&config);
     let sqs = aws_sdk_sqs::Client::new(&config);
 
     let (socketio_layer, io) = SocketIo::builder()
         .with_state(Arc::new(SocketState {
             decoding_key: DecodingKey::from_rsa_pem(pem_public_key.as_bytes())?,
             validation: Validation::new(Algorithm::RS256),
+            dynamodb,
+            table_name,
         }))
         .req_path(format!("{}/socket.io", BASE_PATH))
         .build_layer();
