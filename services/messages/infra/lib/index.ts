@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib'
+import * as appscaling from 'aws-cdk-lib/aws-applicationautoscaling'
 import * as acm from 'aws-cdk-lib/aws-certificatemanager'
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb'
 import * as ec2 from 'aws-cdk-lib/aws-ec2'
@@ -82,6 +83,29 @@ export class ChatterboxMessagesStack extends cdk.Stack {
       )
     fargateService.targetGroup.configureHealthCheck({
       path: '/api/v1/health',
+    })
+
+    const scaling = fargateService.service.autoScaleTaskCount({
+      minCapacity: 1,
+      maxCapacity: 2,
+    })
+
+    scaling.scaleOnCpuUtilization('CpuUtilization', {
+      targetUtilizationPercent: 50,
+    })
+    scaling.scaleOnMemoryUtilization('MemoryUtilization', {
+      targetUtilizationPercent: 50,
+    })
+
+    scaling.scaleOnSchedule('MorningSchedule', {
+      schedule: appscaling.Schedule.cron({ hour: '16', minute: '0' }),
+      minCapacity: 1,
+      maxCapacity: 2,
+    })
+    scaling.scaleOnSchedule('EveningSchedule', {
+      schedule: appscaling.Schedule.cron({ hour: '4', minute: '0' }),
+      minCapacity: 0,
+      maxCapacity: 0,
     })
   }
 }
