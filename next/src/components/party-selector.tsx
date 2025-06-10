@@ -52,7 +52,7 @@ export async function PartySelector({
               </SidebarMenuButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent
-              className="w-[--radix-dropdown-menu-trigger-width]"
+              className="w-(--radix-dropdown-menu-trigger-width)"
               align="start"
             >
               {parties.map((party) => (
